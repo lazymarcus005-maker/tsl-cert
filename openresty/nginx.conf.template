@@ -1,0 +1,52 @@
+worker_processes 1;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    lua_package_path "/etc/openresty/lua/?.lua;;";
+    default_type application/json;
+
+    server {
+        listen 8443 ssl;
+        server_name api.__BASE_DOMAIN__;
+
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_certificate /certs/server/valid.crt;
+        ssl_certificate_key /certs/server/valid.key;
+
+        ssl_certificate_by_lua_file /etc/openresty/lua/select_cert.lua;
+        set $current_case "valid";
+        
+        access_by_lua_block {
+            local file = io.open("/state/current", "r")
+            local current = "valid"
+            if file then
+                current = file:read("*l") or "valid"
+                file:close()
+            end
+
+            ngx.var.current_case = current
+            if current ~= "valid" then
+                return ngx.exec("@case_json")
+            end
+        }
+
+        location / {
+            proxy_pass __BACKEND_URL__;
+            proxy_ssl_server_name on;
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Forwarded-By mxlabs.cloud;
+            proxy_set_header X-Test-Lab ssl-testlab.mxlabs.cloud;
+            proxy_set_header X-Test-Case valid;
+            add_header X-Forwarded-By mxlabs.cloud always;
+            add_header X-Test-Lab ssl-testlab.mxlabs.cloud always;
+            add_header X-Test-Case valid always;
+        }
+
+        location @case_json {
+            return 200 '{"case":"$current_case","status":"ok","message":"Rotating QA certificate endpoint."}';
+        }
+    }
+}

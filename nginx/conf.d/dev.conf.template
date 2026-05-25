@@ -1,0 +1,135 @@
+map $host $case_name {
+    default "unknown";
+    valid.${BASE_DOMAIN} "valid";
+    expired.${BASE_DOMAIN} "expired";
+    notyet.${BASE_DOMAIN} "notyet";
+    wronghost.${BASE_DOMAIN} "wronghost";
+    selfsigned.${BASE_DOMAIN} "selfsigned";
+    untrustedca.${BASE_DOMAIN} "untrustedca";
+    weakkey.${BASE_DOMAIN} "weakkey";
+    wrongusage.${BASE_DOMAIN} "wrongusage";
+    wildcard.${BASE_DOMAIN} "wildcard";
+    revoked.${BASE_DOMAIN} "revoked";
+}
+
+server {
+    listen 443 ssl;
+    server_name valid.${BASE_DOMAIN};
+    ssl_certificate /certs/server/valid.crt;
+    ssl_certificate_key /certs/server/valid.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location / {
+        proxy_pass ${BACKEND_URL};
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Forwarded-By mxlabs.cloud;
+        proxy_set_header X-Test-Lab ssl-testlab.mxlabs.cloud;
+        proxy_set_header X-Test-Case valid;
+        add_header X-Forwarded-By mxlabs.cloud always;
+        add_header X-Test-Lab ssl-testlab.mxlabs.cloud always;
+        add_header X-Test-Case valid always;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name expired.${BASE_DOMAIN};
+    ssl_certificate /certs/server/expired.crt;
+    ssl_certificate_key /certs/server/expired.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    default_type application/json;
+    return 200 '{"case":"expired","status":"ok","message":"Expired certificate for fixed dev test case."}';
+}
+
+server {
+    listen 443 ssl;
+    server_name notyet.${BASE_DOMAIN};
+    ssl_certificate /certs/server/notyet.crt;
+    ssl_certificate_key /certs/server/notyet.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    default_type application/json;
+    return 200 '{"case":"notyet","status":"ok","message":"Not yet valid certificate for fixed dev test case."}';
+}
+
+server {
+    listen 443 ssl;
+    server_name wronghost.${BASE_DOMAIN};
+    ssl_certificate /certs/server/wronghost.crt;
+    ssl_certificate_key /certs/server/wronghost.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    default_type application/json;
+    return 200 '{"case":"wronghost","status":"ok","message":"Wrong host certificate for fixed dev test case."}';
+}
+
+server {
+    listen 443 ssl;
+    server_name selfsigned.${BASE_DOMAIN};
+    ssl_certificate /certs/server/selfsigned.crt;
+    ssl_certificate_key /certs/server/selfsigned.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    default_type application/json;
+    return 200 '{"case":"selfsigned","status":"ok","message":"Self-signed certificate for fixed dev test case."}';
+}
+
+server {
+    listen 443 ssl;
+    server_name untrustedca.${BASE_DOMAIN};
+    ssl_certificate /certs/server/untrustedca.crt;
+    ssl_certificate_key /certs/server/untrustedca.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    default_type application/json;
+    return 200 '{"case":"untrustedca","status":"ok","message":"Certificate signed by untrusted CA for fixed dev test case."}';
+}
+
+server {
+    listen 443 ssl;
+    server_name weakkey.${BASE_DOMAIN};
+    ssl_certificate /certs/server/weakkey.crt;
+    ssl_certificate_key /certs/server/weakkey.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers DEFAULT:@SECLEVEL=0;
+    ssl_conf_command CipherString DEFAULT:@SECLEVEL=0;
+    default_type application/json;
+    return 200 '{"case":"weakkey","status":"ok","message":"Weak RSA-1024 certificate for fixed dev test case."}';
+}
+
+server {
+    listen 443 ssl;
+    server_name wrongusage.${BASE_DOMAIN};
+    ssl_certificate /certs/server/wrongusage.crt;
+    ssl_certificate_key /certs/server/wrongusage.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    default_type application/json;
+    return 200 '{"case":"wrongusage","status":"ok","message":"Certificate with incompatible key usage for fixed dev test case."}';
+}
+
+server {
+    listen 443 ssl;
+    server_name wildcard.${BASE_DOMAIN};
+    ssl_certificate /certs/server/wildcard.crt;
+    ssl_certificate_key /certs/server/wildcard.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    default_type application/json;
+    return 200 '{"case":"wildcard","status":"ok","message":"Wildcard certificate for different domain in fixed dev test case."}';
+}
+
+server {
+    listen 443 ssl;
+    server_name revoked.${BASE_DOMAIN};
+    ssl_certificate /certs/server/revoked.crt;
+    ssl_certificate_key /certs/server/revoked.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    default_type application/json;
+    return 200 '{"case":"revoked","status":"ok","message":"Revoked certificate for fixed dev test case."}';
+}
+
+server {
+    listen 443 ssl default_server;
+    server_name _;
+    ssl_certificate /certs/server/valid.crt;
+    ssl_certificate_key /certs/server/valid.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    default_type application/json;
+    return 404 '{"case":"unknown","status":"error","message":"Unknown SSL test case host."}';
+}

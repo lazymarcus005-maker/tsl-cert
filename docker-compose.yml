@@ -1,0 +1,99 @@
+services:
+  cert-init:
+    image: alpine/openssl:latest
+    env_file:
+      - .env
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    entrypoint: ["/bin/sh", "/workspace/gen-certs.sh"]
+    restart: "no"
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    ports:
+      - "443:443"
+    volumes:
+      - ./certs:/certs:ro
+      - ./nginx/conf.d/dev.conf.template:/etc/nginx/templates/dev.conf.template:ro
+    restart: unless-stopped
+
+  openresty:
+    image: openresty/openresty:alpine
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./certs:/certs:ro
+      - ./state:/state
+      - ./openresty/nginx.conf.template:/etc/openresty/nginx.conf.template:ro
+      - ./openresty/lua:/etc/openresty/lua:ro
+    command:
+      - /bin/sh
+      - -c
+      - |
+        sed -e "s|__BASE_DOMAIN__|$$BASE_DOMAIN|g" -e "s|__BACKEND_URL__|$$BACKEND_URL|g" /etc/openresty/nginx.conf.template > /usr/local/openresty/nginx/conf/nginx.conf
+        exec openresty -g 'daemon off;'
+    restart: unless-stopped
+
+  rotator:
+    image: alpine:3.20
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    volumes:
+      - ./state:/state
+      - ./rotator/rotate.sh:/rotate.sh:ro
+    command: ["/bin/sh", "/rotate.sh"]
+    restart: unless-stopped
+
+  ocsp:
+    image: alpine/openssl:latest
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./certs:/certs:ro
+    entrypoint: ["openssl"]
+    command:
+      - ocsp
+      - -port
+      - "8080"
+      - -index
+      - /certs/ca/index.txt
+      - -CA
+      - /certs/ca/ca.crt
+      - -rkey
+      - /certs/ocsp/ocsp.key
+      - -rsigner
+      - /certs/ocsp/ocsp.crt
+      - -ignore_err
+      - -text
+    restart: unless-stopped
+
+  fileserver:
+    image: python:3.12-alpine
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+    ports:
+      - "80:80"
+    volumes:
+      - ./certs:/certs:ro
+      - ./state:/state:ro
+      - ./fileserver/server.py:/app/server.py:ro
+    command: ["python", "/app/server.py"]
+    restart: unless-stopped
