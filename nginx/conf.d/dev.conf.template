@@ -10,6 +10,7 @@ map $host $case_name {
     wrongusage.${BASE_DOMAIN} "wrongusage";
     wildcard.${BASE_DOMAIN} "wildcard";
     revoked.${BASE_DOMAIN} "revoked";
+    missingchain.${BASE_DOMAIN} "missingchain";
 }
 
 server {
@@ -122,6 +123,16 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     default_type application/json;
     return 200 '{"case":"revoked","status":"ok","message":"Revoked certificate for fixed dev test case."}';
+}
+
+server {
+    listen 443 ssl;
+    server_name missingchain.${BASE_DOMAIN};
+    ssl_certificate /certs/server/missingchain.crt;
+    ssl_certificate_key /certs/server/missingchain.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    default_type application/json;
+    return 200 '{"case":"missingchain","status":"ok","message":"Missing intermediate CA certificate for fixed dev test case."}';
 }
 
 server {

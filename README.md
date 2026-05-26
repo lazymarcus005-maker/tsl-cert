@@ -130,6 +130,7 @@ curl --cacert ./certs/ca/ca.crt https://valid.test.mxlabs.cloud
 | 8 | `wrongusage.test.mxlabs.cloud` | ❌ Wrong Usage | App ต้องปฏิเสธ (EKU = emailProtection, ไม่มี serverAuth) | `curl -kv https://wrongusage.test.mxlabs.cloud` |
 | 9 | `wildcard.test.mxlabs.cloud` | ❌ Wrong Domain Wildcard | App ต้องปฏิเสธ (wildcard ของ `other-domain.com`) | `curl -kv https://wildcard.test.mxlabs.cloud` |
 | 10 | `revoked.test.mxlabs.cloud` | ❌ Revoked (OCSP) | App ต้องปฏิเสธ (OCSP = REVOKED) | ดู OCSP section ด้านล่าง |
+| 11 | `missingchain.test.mxlabs.cloud` | ❌ Missing Intermediate | App ต้องปฏิเสธ (chain ไม่ครบ ขาด intermediate CA) | `curl -kv https://missingchain.test.mxlabs.cloud` |
 
 ### Response Format (ทุก endpoint)
 
@@ -190,18 +191,19 @@ Response:
   "next_case": "notyet",
   "next_in_seconds": 47,
   "duration_seconds": 120,
-  "cycle_total_minutes": 23,
+  "cycle_total_minutes": 25,
   "schedule": [
-    { "case": "valid",       "duration_seconds": 300 },
-    { "case": "expired",     "duration_seconds": 120 },
-    { "case": "notyet",      "duration_seconds": 120 },
-    { "case": "wronghost",   "duration_seconds": 120 },
-    { "case": "selfsigned",  "duration_seconds": 120 },
-    { "case": "untrustedca", "duration_seconds": 120 },
-    { "case": "weakkey",     "duration_seconds": 120 },
-    { "case": "wrongusage",  "duration_seconds": 120 },
-    { "case": "wildcard",    "duration_seconds": 120 },
-    { "case": "revoked",     "duration_seconds": 120 }
+    { "case": "valid",        "duration_seconds": 300 },
+    { "case": "expired",      "duration_seconds": 120 },
+    { "case": "notyet",       "duration_seconds": 120 },
+    { "case": "wronghost",    "duration_seconds": 120 },
+    { "case": "selfsigned",   "duration_seconds": 120 },
+    { "case": "untrustedca",  "duration_seconds": 120 },
+    { "case": "weakkey",      "duration_seconds": 120 },
+    { "case": "wrongusage",   "duration_seconds": 120 },
+    { "case": "wildcard",     "duration_seconds": 120 },
+    { "case": "revoked",      "duration_seconds": 120 },
+    { "case": "missingchain", "duration_seconds": 120 }
   ]
 }
 ```
@@ -230,7 +232,8 @@ curl --cacert ./certs/ca/ca.crt https://api.test.mxlabs.cloud:8443
 | `wrongusage` | 2 นาที | |
 | `wildcard` | 2 นาที | |
 | `revoked` | 2 นาที | |
-| **รวม 1 รอบ** | **23 นาที** | วนซ้ำต่อเนื่อง |
+| `missingchain` | 2 นาที | |
+| **รวม 1 รอบ** | **25 นาที** | วนซ้ำต่อเนื่อง |
 
 ### Step 3 — QA App Build — Certificate Pinning
 
@@ -285,7 +288,7 @@ docker compose down
 
 # Rebuild certs ใหม่ทั้งหมด
 docker compose down
-rm -rf certs/ca/index.txt* certs/ca/serial* certs/server/*.crt certs/server/*.key
+rm -rf certs/ca/index.txt* certs/ca/serial* certs/intermediate-ca/ certs/server/*.crt certs/server/*.key
 docker compose up -d
 
 # ดู log ทุก service
