@@ -188,7 +188,7 @@ INTER_EOF
 
 if [ ! -f "${INTER_CA_DIR}/intermediate.crt" ] || [ ! -f "${INTER_CA_DIR}/intermediate.key" ]; then
   openssl req -new -nodes -newkey rsa:2048 \
-    -subj "/C=US/O=DigiCert Inc/CN=DigiCert Global G3 TLS RSA SHA256 2020 CA1" \
+    -subj "/C=US/ST=California/L=San Jose/O=DigiCert Inc/CN=DigiCert Global G3 TLS RSA SHA256 2020 CA1" \
     -keyout "${INTER_CA_DIR}/intermediate.key" \
     -out "${INTER_CA_DIR}/intermediate.csr"
 
