@@ -125,6 +125,34 @@ server {
 }
 
 server {
+    listen 443 ssl;
+    server_name ${BASE_DOMAIN};
+    ssl_certificate /certs/server/valid.crt;
+    ssl_certificate_key /certs/server/valid.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location /status {
+        proxy_pass http://fileserver:80/status;
+        proxy_set_header Host $host;
+    }
+
+    location /ca.crt {
+        proxy_pass http://fileserver:80/ca.crt;
+        proxy_set_header Host $host;
+    }
+
+    location /ca.mobileconfig {
+        proxy_pass http://fileserver:80/ca.mobileconfig;
+        proxy_set_header Host $host;
+    }
+
+    location / {
+        default_type application/json;
+        return 200 '{"status":"ok","message":"SSL Test Lab. Use subdomains for dev testing or api.${BASE_DOMAIN}:8443 for QA rotation."}';
+    }
+}
+
+server {
     listen 443 ssl default_server;
     server_name _;
     ssl_certificate /certs/server/valid.crt;
