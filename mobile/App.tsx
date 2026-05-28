@@ -7,10 +7,26 @@ import {
   Text,
   TouchableOpacity,
   View,
+  TextInput,
+  SafeAreaView,
 } from "react-native";
 
-const BASE_URL = "https://api.test.mxlabs.cloud:8443";
-const ALIVE_PATH = "/alive";
+const BASE_URL = "https://valid.test.mxlabs.cloud";
+
+// Endpoints from README (unit-test subdomains on port 443)
+const ENDPOINTS: { key: string; url: string; label?: string }[] = [
+  { key: "valid", url: "https://valid.test.mxlabs.cloud", label: "valid.test" },
+  { key: "expired", url: "https://expired.test.mxlabs.cloud", label: "expired.test" },
+  { key: "notyet", url: "https://notyet.test.mxlabs.cloud", label: "notyet.test" },
+  { key: "wronghost", url: "https://wronghost.test.mxlabs.cloud", label: "wronghost.test" },
+  { key: "selfsigned", url: "https://selfsigned.test.mxlabs.cloud", label: "selfsigned.test" },
+  { key: "untrustedca", url: "https://untrustedca.test.mxlabs.cloud", label: "untrustedca.test" },
+  { key: "weakkey", url: "https://weakkey.test.mxlabs.cloud", label: "weakkey.test" },
+  { key: "wrongusage", url: "https://wrongusage.test.mxlabs.cloud", label: "wrongusage.test" },
+  { key: "wildcard", url: "https://wildcard.test.mxlabs.cloud", label: "wildcard.test" },
+  { key: "revoked", url: "https://revoked.test.mxlabs.cloud", label: "revoked.test" },
+  { key: "missingchain", url: "https://missingchain.test.mxlabs.cloud", label: "missingchain.test" },
+];
 
 type RequestState = "idle" | "loading" | "success" | "error";
 
@@ -26,13 +42,15 @@ export default function App() {
   const [state, setState] = useState<RequestState>("idle");
   const [result, setResult] = useState<AliveResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
+  const [customUrl, setCustomUrl] = useState<string>("");
 
-  const testAlive = useCallback(async () => {
+  const testEndpoint = useCallback(async (urlOrPath: string) => {
     setState("loading");
     setResult(null);
     setErrorMsg("");
 
-    const url = `${BASE_URL}${ALIVE_PATH}`;
+    // Accept either a full URL (https://...) or a path (/alive)
+    const url = urlOrPath.startsWith("http") ? urlOrPath : `${BASE_URL}${urlOrPath}`;
     const start = Date.now();
 
     try {
@@ -60,24 +78,62 @@ export default function App() {
       : "#6b7280";
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar style="auto" />
 
-      <Text style={styles.title}>TSL Cert — /alive Test</Text>
-      <Text style={styles.subtitle}>{BASE_URL}{ALIVE_PATH}</Text>
+      <Text style={styles.title}>TSL Cert — Endpoint Tester</Text>
+      <Text style={styles.subtitle}>{BASE_URL}</Text>
 
-      <TouchableOpacity
-        style={[styles.button, state === "loading" && styles.buttonDisabled]}
-        onPress={testAlive}
-        disabled={state === "loading"}
-        activeOpacity={0.8}
+      {/* Custom URL input */}
+      <View style={styles.customRow}>
+        <TextInput
+          style={styles.customInput}
+          placeholder="https://valid.test.mxlabs.cloud"
+          value={customUrl}
+          onChangeText={setCustomUrl}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          returnKeyType="go"
+          onSubmitEditing={() => {
+            if (customUrl.trim()) testEndpoint(customUrl.trim());
+          }}
+        />
+        <TouchableOpacity
+          style={[styles.button, styles.customTestButton, state === "loading" && styles.buttonDisabled]}
+          onPress={() => customUrl.trim() && testEndpoint(customUrl.trim())}
+          disabled={state === "loading" || !customUrl.trim()}
+        >
+          {state === "loading" ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Custom URL</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        horizontal
+        contentContainerStyle={styles.endpointList}
+        style={{ marginBottom: 12 }}
+        showsHorizontalScrollIndicator={false}
       >
-        {state === "loading" ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>Test /alive</Text>
-        )}
-      </TouchableOpacity>
+        {ENDPOINTS.map((ep) => (
+          <TouchableOpacity
+            key={ep.key}
+            style={[styles.button, state === "loading" && styles.buttonDisabled, styles.endpointButton]}
+            onPress={() => testEndpoint(ep.url)}
+            disabled={state === "loading"}
+            activeOpacity={0.8}
+          >
+            {state === "loading" ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>{ep.label ?? ep.url}</Text>
+            )}
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {state !== "idle" && (
         <ScrollView style={styles.resultBox} contentContainerStyle={styles.resultContent}>
@@ -108,7 +164,7 @@ export default function App() {
           )}
         </ScrollView>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -124,30 +180,40 @@ function Row({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
-    paddingTop: 72,
-    paddingHorizontal: 24,
-    alignItems: "center",
+    backgroundColor: "#f6f8fb",
+    paddingTop: 20,
+    paddingHorizontal: 18,
+    alignItems: "stretch",
   },
   title: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "700",
-    color: "#0f172a",
-    marginBottom: 4,
+    color: "#0b1220",
+    marginBottom: 6,
   },
   subtitle: {
-    fontSize: 13,
-    color: "#64748b",
-    marginBottom: 32,
+    fontSize: 12,
+    color: "#6b7280",
+    marginBottom: 14,
     fontFamily: "monospace",
   },
   button: {
-    backgroundColor: "#3b82f6",
-    paddingVertical: 14,
-    paddingHorizontal: 40,
-    borderRadius: 10,
-    minWidth: 160,
+    backgroundColor: "#2563eb",
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    minWidth: 120,
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  endpointButton: {
+    marginRight: 10,
+    minWidth: 110,
+    paddingHorizontal: 12,
   },
   buttonDisabled: {
     backgroundColor: "#93c5fd",
@@ -158,13 +224,18 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   resultBox: {
-    marginTop: 28,
+    marginTop: 18,
     width: "100%",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    maxHeight: 380,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    borderWidth: 0,
+    padding: 0,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+    maxHeight: 420,
   },
   resultContent: {
     padding: 16,
@@ -205,6 +276,29 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 6,
     marginTop: 2,
+  },
+  endpointList: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  customRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  customInput: {
+    flex: 1,
+    backgroundColor: "#fff",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#e6eefc",
+  },
+  customTestButton: {
+    minWidth: 110,
+    paddingHorizontal: 14,
   },
   errorText: {
     fontSize: 13,

@@ -1,21 +1,53 @@
-# How to Build to Device
+# How to Build & Trust Lab CA on Android (Debug APK)
 
-คู่มือ build และรัน React Native (Expo) app บนอุปกรณ์จริง
+> คู่มือสร้าง Android debug APK ที่เชื่อถือ Fake CA ของ SSL Test Lab  
+> โดยไม่ต้องแก้ไข system CA ของ emulator/device
 
 ---
 
-## Prerequisites
+## สิ่งที่ต้องมี
 
-| เครื่องมือ | เวอร์ชัน |
+| เครื่องมือ | รายละเอียด |
 |---|---|
-| Node.js | >= 18 |
-| npm | >= 9 |
-| Expo CLI | ติดตั้งผ่าน `npm install -g expo-cli` |
-| Expo Go app | ติดตั้งจาก App Store / Play Store (สำหรับ development) |
+| Node.js & npm | v18+ |
+| Java (JDK 17+) | ติดตั้งผ่าน Homebrew: `brew install --cask temurin@17` |
+| Android SDK | ติดตั้งผ่าน Android Studio |
+| Docker Compose | สำหรับ start test lab และสร้าง certs |
+| adb | อยู่ใน `~/Library/Android/sdk/platform-tools/` |
 
 ---
 
-## 1. ติดตั้ง Dependencies
+## ทำไมต้องทำแบบนี้?
+
+```
+Expo Go (Managed)
+  └── ไม่รองรับ network_security_config ของ project
+  └── User CA ถูก ignore โดย Expo Go → Network request failed
+
+Debug APK (Custom build)
+  └── รวม CA ใน app resources (res/raw/my_ca.crt)
+  └── network_security_config.xml บอกให้ app เชื่อถือ CA นั้น
+  └── JS bundle ถูก embed ใน APK (ไม่ต้องการ Metro server)
+  └── ✅ ทดสอบ HTTPS endpoints ได้โดยตรงจากแอป
+```
+
+---
+
+## ขั้นตอน
+
+### Step 1 — Start Test Lab และสร้าง certificates
+
+```bash
+# จาก root ของ project
+docker compose up -d
+
+# ตรวจสอบว่า CA file มีอยู่
+ls certs/ca/ca.crt
+```
+
+---
+
+### Step 2 — Install dependencies (ครั้งแรก)
 
 ```bash
 cd mobile
@@ -24,141 +56,149 @@ npm install
 
 ---
 
-## 2. รัน Development Server
+### Step 3 — Copy CA เข้า Android resources
+
+สคริปต์นี้คัดลอก `certs/ca/ca.crt` → `android/app/src/main/res/raw/my_ca.crt`
 
 ```bash
-npx expo start
+# จากโฟลเดอร์ mobile/
+npm run apply-ca
 ```
 
-Terminal จะแสดง QR code — เปิด **Expo Go** บนมือถือแล้วสแกน QR code ได้เลย (มือถือและเครื่อง dev ต้องอยู่ใน Wi-Fi เดียวกัน)
+ผลลัพธ์ที่ถูกต้อง:
+```
+Copied CA to .../mobile/android/app/src/main/res/raw/my_ca.crt
+```
+
+> ⚠️ ต้องรันทุกครั้งที่มีการ regenerate certs ใหม่
 
 ---
 
-## 3. Build สำหรับ iOS (ผ่าน EAS Build)
-
-> ต้องมี Apple Developer Account และ Expo account
-
-### 3.1 ติดตั้ง EAS CLI
+### Step 4 — Bundle JS เข้า Android assets
 
 ```bash
-npm install -g eas-cli
-eas login
+# จากโฟลเดอร์ mobile/
+mkdir -p android/app/src/main/assets
+
+NODE_ENV=production npx expo export:embed \
+  --platform android \
+  --entry-file node_modules/expo/AppEntry.js \
+  --bundle-output android/app/src/main/assets/index.android.bundle \
+  --assets-dest android/app/src/main/res
 ```
 
-### 3.2 ตั้งค่า EAS (ครั้งแรก)
-
-```bash
-eas build:configure
+ผลลัพธ์ที่ถูกต้อง:
+```
+Android Bundled Xms node_modules/expo/AppEntry.js (653 modules)
+Writing bundle output to: android/app/src/main/assets/index.android.bundle
+Done writing bundle output
 ```
 
-คำสั่งนี้จะสร้างไฟล์ `eas.json` ให้อัตโนมัติ
-
-### 3.3 Build สำหรับ Simulator (ไม่ต้องมี certificate)
-
-```bash
-eas build --platform ios --profile development --local
-```
-
-### 3.4 Build สำหรับอุปกรณ์จริง (.ipa)
-
-```bash
-eas build --platform ios --profile preview
-```
-
-หลัง build เสร็จ EAS จะให้ลิงก์ดาวน์โหลด `.ipa` → ติดตั้งผ่าน AltStore หรือ TestFlight
+> ✅ APK รันได้แบบ standalone ไม่ต้องเปิด Metro server
 
 ---
 
-## 4. Build สำหรับ Android (ผ่าน EAS Build)
-
-### 4.1 Build APK (ติดตั้งตรงบนมือถือได้)
+### Step 5 — สร้าง Debug APK
 
 ```bash
-eas build --platform android --profile preview
+# จากโฟลเดอร์ mobile/android/
+chmod +x ./gradlew
+./gradlew assembleDebug --no-daemon -x lint
 ```
 
-ไฟล์ที่ได้คือ `.apk` → โอนลงมือถือแล้วเปิดติดตั้งได้เลย (ต้องเปิด "Unknown Sources" ใน Settings)
-
-### 4.2 Build AAB (สำหรับ Play Store)
-
-```bash
-eas build --platform android --profile production
+APK ที่ได้จะอยู่ที่:
 ```
+mobile/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+> ถ้า Gradle หา SDK ไม่เจอ ให้สร้างไฟล์ `android/local.properties`:
+> ```
+> sdk.dir=/Users/<username>/Library/Android/sdk
+> ```
 
 ---
 
-## 5. Build บนเครื่องตัวเอง (Local Build)
-
-### iOS (ต้องใช้ macOS + Xcode)
+### Step 6 — ติดตั้ง APK บน Emulator
 
 ```bash
-npx expo run:ios --device
-```
+# Start emulator ก่อน (ถ้ายังไม่ได้ start)
+~/Library/Android/sdk/emulator/emulator -avd Pixel_5 -no-snapshot-load &
 
-Xcode จะขึ้นมาให้เลือกอุปกรณ์ที่ต่ออยู่
-
-### Android (ต้องเปิด USB Debugging บนมือถือ)
-
-```bash
-npx expo run:android --device
-```
-
-ตรวจสอบว่ามือถือเชื่อมต่อแล้วด้วย:
-
-```bash
-adb devices
+# ติดตั้ง APK
+adb install -r mobile/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ---
 
-## 6. ตัวอย่าง `eas.json` (ถ้าต้องการตั้งค่าเอง)
+### Step 7 — เปิดแอป
 
-```json
-{
-  "cli": {
-    "version": ">= 12.0.0"
-  },
-  "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal"
-    },
-    "preview": {
-      "distribution": "internal"
-    },
-    "production": {}
-  }
-}
+```bash
+adb shell am start -n com.anonymous.tslcertalivetest/.MainActivity
 ```
 
 ---
 
-## 7. สรุปคำสั่งที่ใช้บ่อย
+## วิธีทำงานของ CA Trust
 
-| คำสั่ง | ทำอะไร |
+ไฟล์ที่เพิ่มเข้ามาในโปรเจ็กต์:
+
+| ไฟล์ | หน้าที่ |
 |---|---|
-| `npx expo start` | เปิด dev server + QR code |
-| `npx expo start --tunnel` | เปิด dev server ผ่าน tunnel (ข้าม Wi-Fi) |
-| `npx expo run:android --device` | build + ติดตั้งบน Android (local) |
-| `npx expo run:ios --device` | build + ติดตั้งบน iOS (local, macOS only) |
-| `eas build --platform android --profile preview` | build APK ผ่าน cloud |
-| `eas build --platform ios --profile preview` | build IPA ผ่าน cloud |
+| `mobile/scripts/apply-ca.js` | คัดลอก `certs/ca/ca.crt` → `android/app/src/main/res/raw/my_ca.crt` |
+| `mobile/android/app/src/main/res/xml/network_security_config.xml` | บอกให้แอปเชื่อถือ `@raw/my_ca` สำหรับ `*.test.mxlabs.cloud` |
+| `mobile/android/app/src/main/AndroidManifest.xml` | อ้างอิง `networkSecurityConfig` ใน `<application>` tag |
+
+### `network_security_config.xml` (สรุป)
+
+```xml
+<network-security-config>
+  <!-- base: เชื่อถือ system + user CA ทั่วไป -->
+  <base-config>
+    <trust-anchors>
+      <certificates src="system" />
+      <certificates src="user" />
+    </trust-anchors>
+  </base-config>
+
+  <!-- สำหรับโดเมน *.test.mxlabs.cloud: เพิ่ม CA จาก res/raw/my_ca -->
+  <domain-config cleartextTrafficPermitted="false">
+    <domain includeSubdomains="true">test.mxlabs.cloud</domain>
+    <trust-anchors>
+      <certificates src="@raw/my_ca" />
+    </trust-anchors>
+  </domain-config>
+</network-security-config>
+```
+
+---
+
+## Script รวม — Rebuild & Reinstall (ใช้ทุกครั้งที่แก้โค้ดหรือ regenerate certs)
+
+```bash
+cd /path/to/tsl-cert/mobile
+
+npm run apply-ca \
+  && mkdir -p android/app/src/main/assets \
+  && NODE_ENV=production npx expo export:embed \
+      --platform android \
+      --entry-file node_modules/expo/AppEntry.js \
+      --bundle-output android/app/src/main/assets/index.android.bundle \
+      --assets-dest android/app/src/main/res \
+  && cd android \
+  && ./gradlew assembleDebug --no-daemon -x lint \
+  && adb install -r app/build/outputs/apk/debug/app-debug.apk \
+  && adb shell am start -n com.anonymous.tslcertalivetest/.MainActivity
+```
 
 ---
 
 ## Troubleshooting
 
-**มือถือเชื่อมต่อ Expo Go ไม่ได้**
-- ใช้ `npx expo start --tunnel` เพื่อใช้ Ngrok tunnel แทน LAN
-
-**Android: adb ไม่เจออุปกรณ์**
-- เปิด USB Debugging ใน Developer Options
-- ลอง `adb kill-server && adb start-server`
-
-**iOS: ติดตั้งไม่ได้ (Untrusted Developer)**
-- ไปที่ Settings → General → VPN & Device Management → Trust
-
-**TLS Error เวลาเรียก `/alive`**
-- ตรวจสอบว่า CA cert ถูก trust บนอุปกรณ์แล้ว (สำหรับ self-signed cert ใน project นี้)
-- Android: ใส่ cert ใน `res/xml/network_security_config.xml`
-- iOS: ติดตั้ง profile ผ่าน Settings → General → VPN & Device Management
+| ปัญหา | สาเหตุ | วิธีแก้ |
+|---|---|---|
+| `Unable to locate a Java Runtime` | ยังไม่ได้ install JDK | `brew install --cask temurin@17` แล้วเปิด terminal ใหม่ |
+| `SDK location not found` | ไม่มี `local.properties` | สร้างไฟล์ `android/local.properties` → `sdk.dir=/Users/<user>/Library/Android/sdk` |
+| `Unable to load script` (red screen) | ไม่มี JS bundle ใน APK | รัน Step 4 (expo export:embed) แล้ว rebuild |
+| `Network request failed` | CA ไม่ถูก trust | ตรวจสอบว่า `npm run apply-ca` รันสำเร็จ และ APK ถูก rebuild หลังจากนั้น |
+| `Remount failed` | Google Play image ไม่รองรับ system CA push | ใช้วิธี network_security_config ในคู่มือนี้แทน |
+| Certs regenerated แต่ยังใช้ CA เดิม | ลืม apply-ca หลัง `docker compose down/up` | รัน `npm run apply-ca` + rebuild APK |

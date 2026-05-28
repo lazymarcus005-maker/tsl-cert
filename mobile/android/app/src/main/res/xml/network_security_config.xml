@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Debug overrides: still allow user CA when debugging -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+
+    <!-- Base config: trust system and user by default -->
+    <base-config>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Explicitly trust the bundled lab CA (res/raw/my_ca.crt) for test domains -->
+    <domain-config cleartextTrafficPermitted="false">
+        <!-- match subdomains like *.test.mxlabs.cloud and test.mxlabs.cloud -->
+        <domain includeSubdomains="true">test.mxlabs.cloud</domain>
+        <trust-anchors>
+            <!-- system/user are still trusted via base-config; add bundled CA resource -->
+            <certificates src="@raw/my_ca" />
+        </trust-anchors>
+    </domain-config>
+
+</network-security-config>

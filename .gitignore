@@ -2,3 +2,23 @@ certs/**
 !certs/.gitkeep
 state/**
 !state/.gitkeep
+
+# Expo / Metro cache
+.expo/
+mobile/.expo/
+
+# Node
+mobile/node_modules/
+mobile/package-lock.json
+
+# Android generated (prebuild) — keep only hand-edited config files
+mobile/android/build/
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/app/.cxx/
+mobile/android/app/src/main/assets/
+mobile/android/app/src/main/res/raw/
+mobile/android/local.properties
+
+# OS
+.DS_Store
